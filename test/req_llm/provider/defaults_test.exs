@@ -1056,6 +1056,59 @@ defmodule ReqLLM.Provider.DefaultsTest do
       assert chunk.metadata.invalid_arguments
     end
 
+    test "decodes object-shaped tool arguments without crashing", %{model: model} do
+      object_args_event = %{
+        data: %{
+          "choices" => [
+            %{
+              "delta" => %{
+                "tool_calls" => [
+                  %{
+                    "id" => "call_obj",
+                    "type" => "function",
+                    "index" => 0,
+                    "function" => %{"name" => "get_weather", "arguments" => %{"city" => "Paris"}}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+
+      [chunk] = Defaults.default_decode_stream_event(object_args_event, model)
+      assert chunk.type == :tool_call
+      assert chunk.name == "get_weather"
+      assert chunk.arguments == %{"city" => "Paris"}
+      assert chunk.metadata[:id] == "call_obj"
+      assert chunk.metadata[:index] == 0
+    end
+
+    test "treats nil tool arguments as an empty object", %{model: model} do
+      null_args_event = %{
+        data: %{
+          "choices" => [
+            %{
+              "delta" => %{
+                "tool_calls" => [
+                  %{
+                    "id" => "call_null",
+                    "type" => "function",
+                    "function" => %{"name" => "get_weather", "arguments" => nil}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+
+      [chunk] = Defaults.default_decode_stream_event(null_args_event, model)
+      assert chunk.type == :tool_call
+      assert chunk.arguments == %{}
+      refute chunk.metadata[:invalid_arguments]
+    end
+
     test "normalizes non-object tool arguments in streaming deltas", %{model: model} do
       scalar_args_event = %{
         data: %{

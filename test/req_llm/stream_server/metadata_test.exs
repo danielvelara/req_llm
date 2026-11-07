@@ -262,6 +262,36 @@ defmodule ReqLLM.StreamServer.MetadataTest do
     end
   end
 
+  describe "string-keyed usage metadata" do
+    defmodule StringKeyUsageProvider do
+      @moduledoc false
+
+      def decode_stream_event(%{data: %{"usage" => usage}}, _model) do
+        [ReqLLM.StreamChunk.meta(%{"usage" => usage})]
+      end
+
+      def decode_stream_event(_event, _model), do: []
+    end
+
+    test "usage emitted under a string key is captured" do
+      server = start_server(provider_mod: StringKeyUsageProvider)
+      _task = mock_http_task(server)
+
+      usage = %{"prompt_tokens" => 7, "completion_tokens" => 3, "total_tokens" => 10}
+      payload = Jason.encode!(%{"usage" => usage})
+
+      StreamServer.http_event(server, {:data, "data: #{payload}\n\n"})
+      StreamServer.http_event(server, :done)
+
+      assert {:ok, metadata} = StreamServer.await_metadata(server, 100)
+      assert metadata.usage.input_tokens == 7
+      assert metadata.usage.output_tokens == 3
+      assert metadata.usage.total_tokens == 10
+
+      StreamServer.cancel(server)
+    end
+  end
+
   defp await_metadata_waiters(server, expected_count, attempts \\ 50)
 
   defp await_metadata_waiters(server, expected_count, attempts) when attempts > 0 do
