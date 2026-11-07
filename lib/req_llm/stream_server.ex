@@ -1256,7 +1256,7 @@ defmodule ReqLLM.StreamServer do
               :meta ->
                 chunk_meta = chunk.metadata || %{}
 
-                usage = Map.get(chunk_meta, :usage)
+                usage = MapAccess.get_raw(chunk_meta, :usage)
 
                 merged_metadata =
                   Map.merge(

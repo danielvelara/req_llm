@@ -1695,7 +1695,7 @@ defmodule ReqLLM.Provider.Defaults do
   defp decode_openai_tool_call_delta(_), do: nil
 
   defp build_openai_tool_call_chunk(name, args_json, metadata) do
-    case Jason.decode(args_json || "{}") do
+    case decode_tool_call_arguments(args_json) do
       {:ok, decoded_args} ->
         {arguments, extra_metadata} = normalize_tool_call_arguments(decoded_args, args_json)
         ReqLLM.StreamChunk.tool_call(name, arguments, Map.merge(metadata, extra_metadata))
@@ -1712,6 +1712,14 @@ defmodule ReqLLM.Provider.Defaults do
         )
     end
   end
+
+  defp decode_tool_call_arguments(nil), do: {:ok, %{}}
+
+  defp decode_tool_call_arguments(args) when is_binary(args), do: Jason.decode(args)
+
+  defp decode_tool_call_arguments(args) when is_map(args), do: {:ok, args}
+
+  defp decode_tool_call_arguments(_args), do: {:error, :invalid_arguments}
 
   defp normalize_tool_call_arguments(arguments, _raw_arguments) when is_map(arguments) do
     {arguments, %{}}
